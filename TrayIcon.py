@@ -6,22 +6,24 @@ class TrayIcon(QSystemTrayIcon):
     def __init__(self, MainWindow):
         super().__init__()
 
+        self.work_flag = True
 
         self.MainWindow = MainWindow
 
         self.createMenu()
 
+
+
     def createMenu(self):
         self.menu = QMenu()
-        self.work_flag = True
         self.toggle_action = QAction("停止")
-        self.toggle_action.triggered.connect(self.toggel)
+        self.toggle_action.triggered.connect(self.toggle)
         self.exit_action = QtWidgets.QAction("退出")
-        self.exit_action.triggered.connect(self.close)
+        self.exit_action.triggered.connect(self.MainWindow.exit)
 
         self.menu.addAction(self.toggle_action)
         self.menu.addAction(self.exit_action)
-        self.setContextMenu(self.menu)
+        self.setContextMenu(self.menu)  # 设置之后右键就出现菜单
 
         # 设置图标
         self.setIcon(QtGui.QIcon("./img/logo.png"))
@@ -29,7 +31,7 @@ class TrayIcon(QSystemTrayIcon):
         # 把鼠标点击图标的信号和槽连接
         self.activated.connect(self.onIconClicked)
 
-    def toggel(self):
+    def toggle(self):
         if self.work_flag:
             self.toggle_action.setText("启动")
             self.work_flag = False
@@ -37,17 +39,16 @@ class TrayIcon(QSystemTrayIcon):
             self.toggle_action.setText("停止")
             self.work_flag = True
 
-    def close(self):
-        exit(0)
 
-    def show_normal_window(self):
-        self.MainWindow.showNormal()
-
-    def quit(self):
-        QtWidgets.qApp.quit()
-
-    # 鼠标点击icon传递的信号会带有一个整形的值，1是表示单击右键，2是双击，3是单击左键，4是用鼠标中键点击
     def onIconClicked(self, event):
-        if event == 3 or 2:
-            self.show_normal_window()
+        """
+        1是表示单击右键，2是双击，3是单击左键，4是用鼠标中键点击
+        :param event:
+        :return:
+        """
+        print(event)
+        if event == 1:
+            pass
+        elif event == 2 or 3:
+            self.MainWindow.show()
 
