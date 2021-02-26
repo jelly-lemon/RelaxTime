@@ -2,6 +2,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from random import choice
 from threading import Thread
 
@@ -9,12 +10,15 @@ from PyQt5.QtCore import QPoint, Qt, QTimer, QObject, pyqtSignal
 from PyQt5.QtGui import QCursor
 from PyQt5.QtWidgets import QMainWindow, QApplication, QLabel, QLineEdit, QVBoxLayout, QHBoxLayout, QWidget, \
     QPushButton, QListWidget, QListWidgetItem, QFileDialog, QMenu, QAction, QMessageBox
-from pynput import mouse
+from pynput import mouse, keyboard
 
 from TrayIcon import TrayIcon
 
 
 class BaseSignal(QObject):
+    """
+    自定义基本信号，用于线程间通信
+    """
     signal = pyqtSignal()
 
     def emit(self):
@@ -25,42 +29,104 @@ class BaseSignal(QObject):
 
 
 class RelaxWindow(QMainWindow):
-    config = {"waiting_time": 300, "player": "default", "play_list": []}
+    """
+    主界面
+    """
+
+    config = {"waiting_time": 300, "player": "default", "play_list": []}    # 默认配置
 
     def __init__(self):
         super().__init__()
+        # 读取配置
         self.read_config()
 
+        # 初始化界面
         self.initUI()
 
+        # 创建定时器
         self.timer = QTimer()
         self.timer.setSingleShot(True)
         self.timer.timeout.connect(self.play)
 
+        # 创建信号
         self.start_timer_signal = BaseSignal()
         self.start_timer_signal.connect(self.start_timer)
+        self.start_timer_signal.emit()
 
-        # 子线程监听是否有鼠标、键盘活动
-        thread = Thread(target=self.listen_activity)
-        thread.setDaemon(True)
-        thread.start()
+        # 子线程监听是否有鼠标活动
+        t_mouse = Thread(target=self.listen_mouse_activity)
+        t_mouse.setDaemon(True)
+        t_mouse.start()
 
-    def listen_activity(self):
-        with mouse.Listener(on_move=lambda x, y: self.start_timer_signal.emit()) as listener:
+        # 子线程监听是否有键盘活动
+        t_keyboard = Thread(target=self.listen_keyboard_activity)
+        t_keyboard.setDaemon(True)
+        t_keyboard.start()
+
+
+    def listen_keyboard_activity(self):
+        """
+        监听键盘活动
+        """
+        with keyboard.Listener(on_press=lambda key:self.start_timer_signal.emit(),
+                               on_release=lambda key:self.start_timer_signal.emit()) as listener:
+            listener.join()
+
+    def listen_mouse_activity(self):
+        """
+        监听是否有鼠标移动 or 点击 or 滑轮活动
+        监听到活动就立即重启计时器
+        """
+        with mouse.Listener(on_move=lambda x, y: self.start_timer_signal.emit(),
+                            on_click=lambda x, y, button, pressed: self.start_timer_signal.emit(),
+                            on_scroll=lambda x, y, dx, dy: self.start_timer_signal.emit()) as listener:
             listener.join()
 
     def start_timer(self):
+        """
+        开启或重启定时器
+        """
         try:
             seconds = int(self.waiting_time_edit.text())
-        except Exception:
+        except Exception as e:
+            print("seconds error", e)
             return
 
         if seconds > 0:
-            print("start_timer", seconds)
+            print("start_timer", seconds, time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time())))
             self.timer.start(seconds * 1000)
 
+    def is_busy(self):
+        """
+        TODO 判断电脑当前是否忙碌
+
+        :return:
+        """
+        threshold = 0.1
+
+        # if cpu_usage >= threshold:
+        #     return True
+        # if disk_usage >= threshold:
+        #     return True
+        # if net_usage >= threshold:
+        #     return True
+
+        return False
+
+
+
     def play(self):
+        """
+        运行指定程序，随机选择文件夹中的某个文件，然后打开
+        """
         print("play")
+
+        # 虽然鼠标或键盘长时间未活动了，但是可能在播放、下载等事情
+        # 就判断一下 cpu、网络、磁盘 情况
+        if self.is_busy():
+            self.start_timer_signal.emit()
+
+        # 随机选择一个目录
         dir_list = []
         count = self.play_list_widget.count()
         print("count", count)
@@ -71,34 +137,49 @@ class RelaxWindow(QMainWindow):
         if len(dir_list) == 0:
             return
 
-        dir = choice(dir_list)
-        print("choose dir", dir)
-        name_list = os.listdir(dir)
-        print("test")
+        # 可能存在文件夹都被删除的情况
+        while True:
+            if len(dir_list) == 0:
+                return
+            dir = choice(dir_list)
+            print("choose dir", dir)
+            if os.path.exists(dir) is False:
+                dir_list.remove(dir)
 
+        # 随机选择一个文件
+        name_list = os.listdir(dir)
         while True:
             file_name = choice(name_list)
             file_path = dir + "/" + file_name
             if os.path.isfile(file_path):
                 break
 
+        # 开启子线程，在子线程中启动 windows 程序（因为启动 windows 程序会阻塞）
         player = self.player_path_label.text()
-
         t = Thread(target=lambda: self.t_play(player, file_path))
         t.setDaemon(True)
         t.start()
 
     def t_play(self, player, file_path):
+        """
+        启动 windows 程序，打开指定文件
+        :param player:
+        :param file_path:
+        :return:
+        """
         print("player", player)
         print("file_path", file_path)
         if player != "default":
-            exe = "\"%s\"" % (player.replace('\\', '/'))
+            exe = "\"%s\"" % (player.replace('\\', '/'))    # 指定的程序
             print("exe", exe)
             os.system("%s %s" % (exe, file_path))
         else:
-            os.startfile(file_path)
+            os.startfile(file_path) # 模拟双击打开文件的效果
 
     def initUI(self):
+        """
+        初始化界面
+        """
         self.setWindowTitle("Relax Time")
         self.setWindowFlags(
             self.windowFlags() & ~Qt.WindowMinimizeButtonHint & ~Qt.WindowMaximizeButtonHint)  # 取消最小化最大化按钮
@@ -188,9 +269,17 @@ class RelaxWindow(QMainWindow):
         """
         config_path = self.get_config_file_path()
 
+        # 读取配置
         if os.path.exists(config_path):
             with open(config_path, "r") as file:
                 self.config = json.load(file)
+
+        # 进行检查
+        print("read config", self.config)
+        if os.path.isfile(self.config["player"]) is False:
+            self.config["player"] = "default"
+
+
 
     def get_config_file_path(self):
         """
@@ -236,6 +325,11 @@ class RelaxWindow(QMainWindow):
         self.hide()  # 隐藏窗口
 
     def exit(self):
+        """
+        退出程序
+
+        timer 必须自己手动关闭，不然 timer 线程不会结束（但是不清楚到时间了会不会退出），程序也不会结束
+        """
         self.timer.stop()
         exit(0)
 
