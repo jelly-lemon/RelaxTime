@@ -1,4 +1,4 @@
-from PyQt5 import QtWidgets, QtCore, QtGui
+from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QMenu, QAction, QSystemTrayIcon
 
 
@@ -6,34 +6,34 @@ class TrayIcon(QSystemTrayIcon):
     """
     托盘图标
     """
-
     def __init__(self, MainWindow):
         super().__init__()
 
-        self.work_flag = True
+        self.setToolTip('Relax Time 正在运行')
 
         self.MainWindow = MainWindow
 
         self.createMenu()
 
-        self.setToolTip('This is a <b>QWidget</b> widget')
+
+
 
     def createMenu(self):
         """
         初始化右键菜单
         """
-        self.menu = QMenu()
+        menu = QMenu()
         self.toggle_action = QAction("停止")
         self.toggle_action.triggered.connect(self.toggle)
-        exit_action = QtWidgets.QAction("退出")
-        exit_action.triggered.connect(self.MainWindow.exit)
+        self.exit_action = QAction("退出")
+        self.exit_action.triggered.connect(self.MainWindow.exit)
 
-        self.menu.addAction(self.toggle_action)
-        self.menu.addAction(exit_action)
-        self.setContextMenu(self.menu)  # 设置之后右键就出现菜单
+        menu.addAction(self.toggle_action)
+        menu.addAction(self.exit_action)
+        self.setContextMenu(menu)  # 设置之后右键就出现菜单
 
         # 设置图标
-        self.setIcon(QtGui.QIcon("./img/logo.png"))
+        self.setIcon(QIcon(":/logo.png"))
 
         # 把鼠标点击图标的信号和槽连接
         self.activated.connect(self.onIconClicked)
@@ -42,12 +42,22 @@ class TrayIcon(QSystemTrayIcon):
         """
         切换状态，关闭或打开
         """
-        if self.work_flag:
+        if self.MainWindow.is_working():
+            # 关闭
             self.toggle_action.setText("启动")
-            self.work_flag = False
+            self.MainWindow.stop_working()
+            self.MainWindow.stop_timer()
+            self.setToolTip("Relax Time 已停止")
+            self.setIcon(QIcon(":/logo_grey.png"))
+            print("关闭功能")
         else:
+            # 开启
             self.toggle_action.setText("停止")
-            self.work_flag = True
+            self.MainWindow.start_working()
+            self.MainWindow.start_timer()
+            self.setToolTip('Relax Time 正在运行')
+            self.setIcon(QIcon(":/logo.png"))
+            print("打开功能")
 
 
     def onIconClicked(self, event):
