@@ -1,0 +1,5 @@
+psutil==5.8.0
+pyinstaller==4.1
+pynput==1.6.8
+PyQt5==5.15.2
+WMI==1.5.1

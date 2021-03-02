@@ -1,5 +1,6 @@
 import json
 import os
+import subprocess
 import sys
 import time
 from random import choice
@@ -91,9 +92,32 @@ class RelaxWindow(QMainWindow):
             print("seconds error", e)
             return
 
+        self.check_dir()
+
         if seconds > 0 and self.working_flag:
-            print("start_timer", seconds, time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time())))
+            # print("start_timer", seconds, time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time())))
             self.timer.start(seconds * 1000)
+
+    def check_dir(self):
+        count = self.play_list_widget.count()
+        for i in range(count):
+            s = self.play_list_widget.item(i).text()
+            if os.path.exists(s):
+                self.play_list_widget.item(i).setForeground(Qt.black)
+                self.play_list_widget.item(i).setToolTip("")
+
+            else:
+                self.play_list_widget.item(i).setForeground(Qt.red)
+                self.play_list_widget.item(i).setToolTip("目录不存在")
+
+    def get_dir_list(self):
+        dir_list = []
+        count = self.play_list_widget.count()
+        for i in range(count):
+            s = self.play_list_widget.item(i).text()
+            dir_list.append(s)
+
+        return dir_list
 
     def set_working_flag(self, flag: bool):
         self.working_flag = flag
@@ -110,6 +134,8 @@ class RelaxWindow(QMainWindow):
     def is_working(self):
         return self.working_flag
 
+
+
     def play(self):
         """
         运行指定程序，随机选择文件夹中的某个文件，然后打开
@@ -120,34 +146,33 @@ class RelaxWindow(QMainWindow):
 
         # 是否正在播放
         if BusyUtil.is_playing(self.player_path_label.text()):
+            print("computer is playing")
             self.start_timer(1)
 
         # 电脑是否忙碌
         if BusyUtil.is_busy():
+            print("computer is busy")
             self.start_timer()
 
         # 随机选择一个目录
-        dir_list = []
-        count = self.play_list_widget.count()
-        for i in range(count):
-            s = self.play_list_widget.item(i).text()
-            dir_list.append(s)
+        dir_list = self.get_dir_list()
         if len(dir_list) == 0:
             return
         while True:
-            # 可能存在文件夹都被删除的情况
             if len(dir_list) == 0:
                 return
             chosen_dir = choice(dir_list)
-            if not os.path.exists(chosen_dir):
-                dir_list.remove(chosen_dir)
-            else:
-                print("choose dir", chosen_dir)
+            if os.path.exists(chosen_dir):
                 break
+            else:
+                dir_list.remove(chosen_dir)
+        print("choose dir", chosen_dir)
 
         # 随机选择一个文件
         name_list = os.listdir(chosen_dir)
         while True:
+            if len(name_list) == 0:
+                return
             file_name = choice(name_list)
             file_path = chosen_dir + "/" + file_name
             if os.path.isfile(file_path):
@@ -158,6 +183,10 @@ class RelaxWindow(QMainWindow):
         t = Thread(target=lambda: self.t_play(player, file_path))
         t.setDaemon(True)
         t.start()
+        self.close()
+
+        # 进入播放后，重新启动定时器，好让视频播放完了接着播放下一个
+        self.start_timer(1)
 
     def t_play(self, player, file_path):
         """
@@ -169,9 +198,9 @@ class RelaxWindow(QMainWindow):
         print("player", player)
         print("file_path", file_path)
         if player != "default":
-            exe = "\"%s\"" % (player.replace('\\', '/'))  # 指定的程序
-            print("exe", exe)
-            os.system("%s %s" % (exe, file_path))
+            cmd = '"%s" "%s"' % (player, file_path)
+            print("cmd", cmd)
+            subprocess.Popen(cmd)
         else:
             os.startfile(file_path)  # 模拟双击打开文件的效果
         print("t_play end")
@@ -267,6 +296,9 @@ class RelaxWindow(QMainWindow):
             self.config["play_list"].append(dir)
             self.play_list_widget.addItem(dir)
 
+
+
+
     def read_config(self):
         """
         读取配置文件
@@ -352,16 +384,4 @@ class RelaxWindow(QMainWindow):
         exit(0)
 
 
-if __name__ == '__main__':
-    app = QApplication(sys.argv)
 
-    # 主界面
-    relaxWindow = RelaxWindow()
-    relaxWindow.show()
-
-    # 托盘图标
-    tray_icon = TrayIcon(relaxWindow)
-    tray_icon.show()
-
-    # 事件驱动
-    sys.exit(app.exec_())

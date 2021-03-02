@@ -2,10 +2,11 @@
 电脑空闲超过设定时间时，随机播放视频。
 
 # 文件说明
-resource.py：根据 resource.qrc 生成的图片文件，工具为 pyrcc5(PyQt5 自带)，这样图片文件就变成了 *.py，方便 pyinstaller 打包。
+- resource.py：根据 resource.qrc 生成的图片文件，工具为 pyrcc5(PyQt5 自带)，这样图片文件就变成了 *.py，方便 pyinstaller 打包。
 例如，pyrcc5 -o resource.py ./img/resource.qrc
 
-MainWindow.spec：pyinstaller 自动生成的
+- MainWindow.spec：pyinstaller 自动生成的
+- requirement.txt: 依赖项，安装本项目依赖使用命令 pip install requirement.txt
 
 
 # 思路
@@ -41,3 +42,4 @@ MainWindow.spec：pyinstaller 自动生成的
 # 啰里啰唆
 之前电脑空闲加入了音频输入输出检测，但仔细想了想，要是挂机，有 QQ 提示音怎么办？还是取消音频检测吧。
 
+使用 PyInstaller 生成的 exe 文件实在是太大了，居然有 37M，感觉就这么点功能应该就几 M。
